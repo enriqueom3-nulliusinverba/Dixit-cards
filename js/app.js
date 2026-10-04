@@ -7,6 +7,7 @@ const preview = document.querySelector("#preview");
 const status = document.querySelector("#status");
 const gallery = document.querySelector("#gallery");
 const deckCount = document.querySelector("#deck-count");
+const guideEl = document.querySelector("#guide");
 const fileInput = document.querySelector("#file");
 const busyLayer = document.querySelector("#stage-busy");
 
@@ -22,9 +23,22 @@ const buttons = {
 
 const dateFormat = new Intl.DateTimeFormat("es-ES", {
   day: "numeric",
-  month: "long",
+  month: "short",
   year: "numeric",
 });
+
+const ICON_SAVE = "M12 3v12m0 0-4-4m4 4 4-4M5 20h14";
+const ICON_TRASH = "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3";
+
+/** En un móvil con menú de compartir, guardar la carta la deja en la galería del teléfono. */
+const canSharePhone = (() => {
+  try {
+    const probe = new File([new Blob(["x"], { type: "image/png" })], "carta.png", { type: "image/png" });
+    return window.matchMedia("(pointer: coarse)").matches && !!navigator.canShare?.({ files: [probe] });
+  } catch {
+    return false;
+  }
+})();
 
 let mode = "idle";
 let busy = false;
@@ -88,6 +102,7 @@ function renderActions() {
     button.disabled = busy || (name === "capture" && !cameraReady);
   }
 
+  document.documentElement.classList.toggle("camera-open", mode === "live");
   stage.classList.toggle("is-live", mode === "live");
   stage.classList.toggle("is-preview", mode === "preview");
   stage.classList.toggle("is-user", mode === "live" && facingUser);
@@ -183,6 +198,7 @@ function closeCamera() {
   renderActions();
 }
 
+/** Recorta la captura a lo que enmarca la guía, que tiene la forma de la carta. */
 function snapshotVideo() {
   const shot = document.createElement("canvas");
   shot.width = video.videoWidth;
@@ -193,7 +209,25 @@ function snapshotVideo() {
     ctx.scale(-1, 1);
   }
   ctx.drawImage(video, 0, 0);
-  return shot;
+
+  const box = video.getBoundingClientRect();
+  const guide = guideEl.getBoundingClientRect();
+  if (!box.width || !guide.width) return shot;
+
+  const scale = Math.max(box.width / shot.width, box.height / shot.height);
+  const offsetX = (box.width - shot.width * scale) / 2;
+  const offsetY = (box.height - shot.height * scale) / 2;
+  const sx = Math.max(0, (guide.left - box.left - offsetX) / scale);
+  const sy = Math.max(0, (guide.top - box.top - offsetY) / scale);
+  const sw = Math.min(shot.width - sx, guide.width / scale);
+  const sh = Math.min(shot.height - sy, guide.height / scale);
+  if (sw < 16 || sh < 16) return shot;
+
+  const crop = document.createElement("canvas");
+  crop.width = Math.round(sw);
+  crop.height = Math.round(sh);
+  crop.getContext("2d").drawImage(shot, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
+  return crop;
 }
 
 async function illustrate(source) {
@@ -257,6 +291,38 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
+/** Abre el menú de compartir con la carta, que ofrece guardarla en la galería del móvil. */
+async function sendToPhone(blob, filename) {
+  const file = new File([blob], filename, { type: "image/png" });
+  try {
+    await navigator.share({ files: [file], title: "Dixit cards" });
+    return true;
+  } catch (error) {
+    return error?.name === "AbortError";
+  }
+}
+
+function saveToDevice(blob, filename) {
+  if (canSharePhone) {
+    sendToPhone(blob, filename).then((done) => {
+      if (!done) downloadBlob(blob, filename);
+    });
+  } else {
+    downloadBlob(blob, filename);
+  }
+}
+
+function iconButton(label, path, className) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `btn btn-sm ${className}`;
+  button.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg>`;
+  const text = document.createElement("span");
+  text.textContent = label;
+  button.append(text);
+  return button;
+}
+
 function clearPreview() {
   previewBlob = null;
   if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -278,6 +344,8 @@ async function savePreview() {
     sample: false,
   };
 
+  if (canSharePhone) saveToDevice(card.blob, `dixit-cards-${fileStamp(new Date(card.createdAt))}.png`);
+
   try {
     await saveCard(card);
   } catch (error) {
@@ -294,7 +362,7 @@ async function savePreview() {
   highlightId = card.id;
   clearPreview();
   mode = "idle";
-  setStatus("Carta guardada. Se queda en este dispositivo.");
+  setStatus(canSharePhone ? "Carta guardada en el mazo. Elige «Guardar imagen» para dejarla en la galería." : "Carta guardada. Se queda en este dispositivo.");
   renderActions();
   renderGallery();
   gallery.querySelector(".carta")?.scrollIntoView({
@@ -358,23 +426,25 @@ function renderGallery() {
     const actions = document.createElement("div");
     actions.className = "carta-actions";
 
-    const download = document.createElement("button");
-    download.type = "button";
-    download.className = "btn btn-ink";
-    download.textContent = "Descargar";
     const filename = card.sample ? "dixit-cards-muestra.png" : `dixit-cards-${fileStamp(new Date(card.createdAt))}.png`;
-    download.addEventListener("click", () => downloadBlob(card.blob, filename));
+    const download = iconButton("Guardar", ICON_SAVE, "btn-ink");
+    download.title = canSharePhone ? "Guardar en la galería del móvil" : "Descargar la carta en PNG";
+    download.addEventListener("click", () => saveToDevice(card.blob, filename));
 
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "btn btn-ghost";
-    remove.textContent = "Quitar";
+    const remove = iconButton("Quitar", ICON_TRASH, "btn-ghost");
+    const removeLabel = remove.querySelector("span");
+    let resetTimer = 0;
     remove.addEventListener("click", async () => {
       if (remove.dataset.confirm !== "1") {
         remove.dataset.confirm = "1";
-        remove.textContent = "Sí, quitar";
+        removeLabel.textContent = "¿Seguro?";
+        resetTimer = setTimeout(() => {
+          remove.dataset.confirm = "";
+          removeLabel.textContent = "Quitar";
+        }, 3000);
         return;
       }
+      clearTimeout(resetTimer);
       try {
         if (storageOk) await deleteCard(card.id);
       } catch {
@@ -412,6 +482,11 @@ async function boot() {
   renderGallery();
 }
 
+if (canSharePhone) {
+  buttons.save.textContent = "Guardar en el móvil";
+  buttons.download.textContent = "Compartir";
+}
+
 buttons.camera.addEventListener("click", () => {
   openCamera();
 });
@@ -435,7 +510,7 @@ buttons.save.addEventListener("click", savePreview);
 buttons.discard.addEventListener("click", discardPreview);
 buttons.download.addEventListener("click", () => {
   if (!previewBlob) return;
-  downloadBlob(previewBlob, `dixit-cards-${fileStamp(new Date())}.png`);
+  saveToDevice(previewBlob, `dixit-cards-${fileStamp(new Date())}.png`);
 });
 
 stage.addEventListener("dragover", (event) => {
