@@ -115,6 +115,7 @@
 
 html {
   background: var(--bg);
+  overflow-x: clip;
 }
 
 body {
@@ -386,6 +387,10 @@ h2 {
   display: flex;
 }
 
+.stage.is-busy .stage-idle {
+  visibility: hidden;
+}
+
 #video,
 .stage-preview {
   display: none;
@@ -585,14 +590,98 @@ h2 {
   margin: 0;
 }
 
-@media (max-width: 420px) {
-  .actions,
+/* Móvil: la carta y las acciones caben en la primera pantalla. */
+@media (max-width: 879px) {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .btn {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .studio {
+    gap: 1.25rem;
+  }
+
+  .kicker {
+    margin-bottom: 0.6rem;
+    font-size: 0.72rem;
+  }
+
+  .lede {
+    margin-top: 0.9rem;
+    font-size: 1.02rem;
+  }
+
+  .steps {
+    display: none;
+  }
+
+  .persist {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+  }
+
+  .stage-wrap {
+    width: min(100%, 440px, calc(50svh * 0.667 / 0.86));
+  }
+
+  .controls {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    margin-inline: -1rem;
+    padding: 1.25rem 1rem max(0.75rem, env(safe-area-inset-bottom));
+    background: linear-gradient(to bottom, transparent, var(--bg) 1.1rem);
+  }
+
+  .status {
+    margin-bottom: 0.6rem;
+    font-size: 0.95rem;
+  }
+
+  .status:empty {
+    display: none;
+  }
+
+  .actions .btn {
+    flex: 1 1 calc(50% - 0.3rem);
+  }
+
+  .actions .btn-primary:only-of-type,
+  #btn-capture,
+  #btn-save {
+    flex-basis: 100%;
+  }
+
+  .gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.75rem 1rem;
+  }
+
+  .gallery-section {
+    margin-top: 3rem;
+  }
+
   .carta-actions {
     flex-direction: column;
   }
 
-  .btn {
+  .carta-actions .btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  h1 {
+    font-size: clamp(3rem, 17vw, 4.4rem);
+  }
+
+  .carta-meta {
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
   }
 }
 

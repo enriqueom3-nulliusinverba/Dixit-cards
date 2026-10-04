@@ -133,23 +133,21 @@ function kuwahara(imageData, w, h, radius) {
   const out = new ImageData(w, h);
   const dst = out.data;
   for (let y = 0; y < h; y += 1) {
+    const ya = Math.max(0, y - radius);
+    const yb = Math.min(h - 1, y + radius);
     for (let x = 0; x < w; x += 1) {
       const xa = Math.max(0, x - radius);
       const xb = Math.min(w - 1, x + radius);
-      const ya = Math.max(0, y - radius);
-      const yb = Math.min(h - 1, y + radius);
-      const quads = [
-        [xa, ya, x, y],
-        [x, ya, xb, y],
-        [xa, y, x, yb],
-        [x, y, xb, yb],
-      ];
 
       let best = Infinity;
       let mr = 0;
       let mg = 0;
       let mb = 0;
-      for (const [x0, y0, x1, y1] of quads) {
+      for (let q = 0; q < 4; q += 1) {
+        const x0 = q & 1 ? x : xa;
+        const x1 = q & 1 ? xb : x;
+        const y0 = q & 2 ? y : ya;
+        const y1 = q & 2 ? yb : y;
         const n = (x1 - x0 + 1) * (y1 - y0 + 1);
         const meanL = box(sumL, x0, y0, x1, y1) / n;
         const variance = box(sumL2, x0, y0, x1, y1) / n - meanL * meanL;
