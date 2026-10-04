@@ -838,3 +838,117 @@ export async function createSampleBlob() {
   paintSample(art.getContext("2d"), INNER_W, INNER_H);
   return canvasToPngBlob(composeCard(art));
 }
+
+/** Reverso propio: degradado cálido con remolinos, borde de carta y el nombre en el centro. */
+export async function createBackBlob() {
+  try {
+    await Promise.race([
+      document.fonts.load('650 120px Fraunces'),
+      new Promise((resolve) => setTimeout(resolve, 1800)),
+    ]);
+  } catch {
+    /* Si la fuente no carga, se usa la de reserva. */
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = CARD_W;
+  canvas.height = CARD_H;
+  const ctx = canvas.getContext("2d");
+  const border = 30;
+  const inner = CARD_RADIUS - 14;
+
+  ctx.beginPath();
+  ctx.roundRect(0, 0, CARD_W, CARD_H, CARD_RADIUS);
+  ctx.clip();
+  ctx.fillStyle = "#f4efe4";
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(border, border, CARD_W - border * 2, CARD_H - border * 2, inner);
+  ctx.clip();
+
+  const sky = ctx.createLinearGradient(0, 0, CARD_W, CARD_H);
+  sky.addColorStop(0, "#c9506b");
+  sky.addColorStop(0.45, "#e8734a");
+  sky.addColorStop(0.8, "#f2a65a");
+  sky.addColorStop(1, "#d9627a");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+
+  ctx.lineCap = "round";
+  for (let i = 0; i < 26; i += 1) {
+    const seed = hash(i * 977 + 13);
+    const x = (seed % CARD_W) | 0;
+    const y = (hash(seed) % CARD_H) | 0;
+    const radius = 120 + (hash(seed + 5) % 320);
+    const start = ((hash(seed + 9) % 628) / 100) | 0;
+    ctx.strokeStyle = i % 3 === 0 ? "rgba(255, 226, 170, 0.16)" : i % 3 === 1 ? "rgba(150, 40, 80, 0.14)" : "rgba(255, 150, 110, 0.15)";
+    ctx.lineWidth = 26 + (hash(seed + 21) % 70);
+    ctx.beginPath();
+    ctx.arc(x, y, radius, start, start + 1.7 + (hash(seed + 33) % 100) / 60);
+    ctx.stroke();
+  }
+
+  const glow = ctx.createRadialGradient(CARD_W / 2, CARD_H / 2, 20, CARD_W / 2, CARD_H / 2, CARD_W * 0.7);
+  glow.addColorStop(0, "rgba(255, 236, 190, 0.5)");
+  glow.addColorStop(1, "rgba(255, 236, 190, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+
+  ctx.globalCompositeOperation = "multiply";
+  ctx.globalAlpha = 0.2;
+  ctx.fillStyle = paperFill(ctx);
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+  ctx.restore();
+
+  ctx.strokeStyle = "rgba(255, 244, 220, 0.75)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(border + 22, border + 22, CARD_W - (border + 22) * 2, CARD_H - (border + 22) * 2, inner - 10);
+  ctx.stroke();
+
+  const cx = CARD_W / 2;
+  const cy = CARD_H / 2;
+
+  const moon = document.createElement("canvas");
+  moon.width = 160;
+  moon.height = 160;
+  const mctx = moon.getContext("2d");
+  mctx.fillStyle = "#fff0c4";
+  mctx.beginPath();
+  mctx.arc(80, 80, 56, 0, Math.PI * 2);
+  mctx.fill();
+  mctx.globalCompositeOperation = "destination-out";
+  mctx.beginPath();
+  mctx.arc(104, 66, 52, 0, Math.PI * 2);
+  mctx.fill();
+  ctx.save();
+  ctx.shadowColor = "rgba(120, 30, 60, 0.45)";
+  ctx.shadowBlur = 18;
+  ctx.translate(cx, cy - 190);
+  ctx.rotate(-0.35);
+  ctx.drawImage(moon, -80, -80);
+  ctx.restore();
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "rgba(110, 24, 60, 0.55)";
+  ctx.shadowBlur = 22;
+  ctx.shadowOffsetY = 6;
+  ctx.fillStyle = "#fff4dc";
+  ctx.font = '650 190px Fraunces, "Iowan Old Style", Palatino, serif';
+  ctx.fillText("Dixit", cx, cy + 10);
+
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = "#ffd98a";
+  ctx.font = '560 78px Fraunces, "Iowan Old Style", Palatino, serif';
+  try {
+    ctx.letterSpacing = "0.18em";
+  } catch {
+    /* Algunos navegadores no espacian el texto del lienzo. */
+  }
+  ctx.fillText("cards", cx, cy + 150);
+
+  return canvasToPngBlob(canvas);
+}

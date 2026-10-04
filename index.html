@@ -18,7 +18,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Dixit cards" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="stylesheet" href="styles.css?v=13" />
+    <link rel="stylesheet" href="styles.css?v=14" />
   </head>
   <body>
     <a class="skip" href="#mirada">Saltar a la foto</a>
@@ -66,6 +66,10 @@
           <div class="controls">
             <div class="zoom" id="zoom" role="group" aria-label="Zoom de la cámara" hidden></div>
             <p class="status" id="status" role="status"></p>
+            <label class="check" id="back-opt" hidden>
+              <input type="checkbox" id="opt-back" checked />
+              <span>Guardar también el reverso</span>
+            </label>
             <div class="actions">
               <button type="button" class="btn btn-primary" id="btn-camera">Abrir la cámara</button>
               <button type="button" class="btn btn-primary" id="btn-capture" aria-label="Capturar la foto" hidden>Capturar</button>
@@ -95,6 +99,6 @@
         </p>
       </footer>
     </div>
-    <script type="module" src="js/app.js?v=13"></script>
+    <script type="module" src="js/app.js?v=14"></script>
   </body>
 </html>

@@ -492,6 +492,22 @@ h2 {
 
 /* Mazo */
 
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  color: var(--fg-soft);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.check input {
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: var(--btn-bg);
+}
+
 .gallery-section {
   margin-top: 4.5rem;
   padding-top: 2.25rem;

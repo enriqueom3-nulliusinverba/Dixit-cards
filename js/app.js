@@ -1,4 +1,4 @@
-import { CARD_W, CARD_H, createSampleBlob, illustrateSource, canvasToPngBlob } from "./filter.js";
+import { CARD_W, CARD_H, createBackBlob, createSampleBlob, illustrateSource, canvasToPngBlob } from "./filter.js";
 import { deleteCard, listCards, saveCard, seedSampleIfNeeded } from "./store.js";
 
 const stage = document.querySelector("#stage");
@@ -9,6 +9,9 @@ const gallery = document.querySelector("#gallery");
 const deckCount = document.querySelector("#deck-count");
 const guideEl = document.querySelector("#guide");
 const zoomBar = document.querySelector("#zoom");
+const backOpt = document.querySelector("#back-opt");
+const optBack = document.querySelector("#opt-back");
+let backBlob = null;
 const fileInput = document.querySelector("#file");
 const busyLayer = document.querySelector("#stage-busy");
 
@@ -116,6 +119,7 @@ function renderActions() {
 
   document.documentElement.classList.toggle("camera-open", mode === "live");
   zoomBar.hidden = mode !== "live";
+  backOpt.hidden = mode !== "preview";
   stage.classList.toggle("is-live", mode === "live");
   stage.classList.toggle("is-preview", mode === "preview");
   stage.classList.toggle("is-user", mode === "live" && facingUser);
@@ -382,25 +386,25 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-/** Abre el menú de compartir con la carta, que ofrece guardarla en la galería del móvil. */
-async function sendToPhone(blob, filename) {
-  const file = new File([blob], filename, { type: "image/png" });
-  try {
-    await navigator.share({ files: [file], title: "Dixit cards" });
-    return true;
-  } catch (error) {
-    return error?.name === "AbortError";
-  }
-}
+/**
+ * Guarda la carta en el dispositivo: en el móvil abre el menú de compartir (galería)
+ * y en el ordenador descarga los archivos. Con la opción activa lleva también el reverso.
+ */
+function saveToDevice(blob, base) {
+  const withBack = optBack.checked && backBlob;
+  const items = [{ blob, name: withBack ? `${base}-frente.png` : `${base}.png` }];
+  if (withBack) items.push({ blob: backBlob, name: `${base}-reverso.png` });
 
-function saveToDevice(blob, filename) {
   if (canSharePhone) {
-    sendToPhone(blob, filename).then((done) => {
-      if (!done) downloadBlob(blob, filename);
-    });
-  } else {
-    downloadBlob(blob, filename);
+    const files = items.map((item) => new File([item.blob], item.name, { type: "image/png" }));
+    navigator
+      .share({ files, title: "Dixit cards" })
+      .catch((error) => {
+        if (error?.name !== "AbortError") items.forEach((item) => downloadBlob(item.blob, item.name));
+      });
+    return;
   }
+  items.forEach((item, index) => setTimeout(() => downloadBlob(item.blob, item.name), index * 400));
 }
 
 function iconButton(label, path, className) {
@@ -515,7 +519,7 @@ function renderGallery() {
     const actions = document.createElement("div");
     actions.className = "carta-actions";
 
-    const filename = card.sample ? "dixit-cards-muestra.png" : `dixit-cards-${fileStamp(new Date(card.createdAt))}.png`;
+    const filename = card.sample ? "dixit-cards-muestra" : `dixit-cards-${fileStamp(new Date(card.createdAt))}`;
     const download = iconButton("Guardar", ICON_SAVE, "btn-ink");
     download.title = canSharePhone ? "Guardar en la galería del móvil" : "Descargar la carta en PNG";
     download.addEventListener("click", () => saveToDevice(card.blob, filename));
@@ -554,6 +558,12 @@ function renderGallery() {
 
 async function boot() {
   applyFrame();
+  createBackBlob().then((blob) => {
+    backBlob = blob;
+  }).catch(() => {
+    optBack.checked = false;
+    optBack.disabled = true;
+  });
   renderActions();
   try {
     await seedSampleIfNeeded(createSampleBlob);
@@ -596,7 +606,7 @@ buttons.save.addEventListener("click", savePreview);
 buttons.discard.addEventListener("click", discardPreview);
 buttons.download.addEventListener("click", () => {
   if (!previewBlob) return;
-  saveToDevice(previewBlob, `dixit-cards-${fileStamp(new Date())}.png`);
+  saveToDevice(previewBlob, `dixit-cards-${fileStamp(new Date())}`);
 });
 
 stage.addEventListener("dragover", (event) => {
