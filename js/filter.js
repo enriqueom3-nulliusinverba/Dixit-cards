@@ -839,7 +839,36 @@ export async function createSampleBlob() {
   return canvasToPngBlob(composeCard(art));
 }
 
-/** Reverso propio: degradado cálido con remolinos, borde de carta y el nombre en el centro. */
+function backFlourish(ctx, cx, y, half, color, lineWidth) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.lineCap = "round";
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(cx + side * 22, y);
+    ctx.bezierCurveTo(cx + side * half * 0.35, y - 34, cx + side * half * 0.62, y + 36, cx + side * half * 0.86, y - 6);
+    ctx.bezierCurveTo(cx + side * half * 0.96, y - 22, cx + side * half * 1.04, y - 4, cx + side * half * 0.97, y + 8);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx + side * half * 0.97, y + 8, lineWidth * 1.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.moveTo(cx, y - 11);
+  ctx.lineTo(cx + 11, y);
+  ctx.lineTo(cx, y + 11);
+  ctx.lineTo(cx - 11, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Reverso propio, en el aire del reverso de una baraja de cuento: acuarela cálida
+ * de naranjas y rojos, borde crema y un nombre con florituras en el centro.
+ */
 export async function createBackBlob() {
   try {
     await Promise.race([
@@ -856,6 +885,8 @@ export async function createBackBlob() {
   const ctx = canvas.getContext("2d");
   const border = 30;
   const inner = CARD_RADIUS - 14;
+  const cx = CARD_W / 2;
+  const cy = CARD_H / 2;
 
   ctx.beginPath();
   ctx.roundRect(0, 0, CARD_W, CARD_H, CARD_RADIUS);
@@ -868,48 +899,70 @@ export async function createBackBlob() {
   ctx.roundRect(border, border, CARD_W - border * 2, CARD_H - border * 2, inner);
   ctx.clip();
 
-  const sky = ctx.createLinearGradient(0, 0, CARD_W, CARD_H);
-  sky.addColorStop(0, "#c9506b");
-  sky.addColorStop(0.45, "#e8734a");
-  sky.addColorStop(0.8, "#f2a65a");
-  sky.addColorStop(1, "#d9627a");
-  ctx.fillStyle = sky;
+  ctx.fillStyle = "#df5f3d";
   ctx.fillRect(0, 0, CARD_W, CARD_H);
 
-  ctx.lineCap = "round";
-  for (let i = 0; i < 26; i += 1) {
-    const seed = hash(i * 977 + 13);
-    const x = (seed % CARD_W) | 0;
-    const y = (hash(seed) % CARD_H) | 0;
-    const radius = 120 + (hash(seed + 5) % 320);
-    const start = ((hash(seed + 9) % 628) / 100) | 0;
-    ctx.strokeStyle = i % 3 === 0 ? "rgba(255, 226, 170, 0.16)" : i % 3 === 1 ? "rgba(150, 40, 80, 0.14)" : "rgba(255, 150, 110, 0.15)";
-    ctx.lineWidth = 26 + (hash(seed + 21) % 70);
-    ctx.beginPath();
-    ctx.arc(x, y, radius, start, start + 1.7 + (hash(seed + 33) % 100) / 60);
-    ctx.stroke();
+  const tints = ["240, 137, 74", "216, 69, 79", "246, 178, 110", "194, 58, 88", "250, 150, 90", "222, 96, 60"];
+  for (let i = 0; i < 46; i += 1) {
+    const seed = hash(i * 211 + 7);
+    const x = seed % CARD_W;
+    const y = hash(seed) % CARD_H;
+    const radius = 160 + (hash(seed + 3) % 300);
+    const tint = tints[hash(seed + 8) % tints.length];
+    const blob = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    blob.addColorStop(0, `rgba(${tint}, 0.5)`);
+    blob.addColorStop(1, `rgba(${tint}, 0)`);
+    ctx.fillStyle = blob;
+    ctx.fillRect(0, 0, CARD_W, CARD_H);
   }
 
-  const glow = ctx.createRadialGradient(CARD_W / 2, CARD_H / 2, 20, CARD_W / 2, CARD_H / 2, CARD_W * 0.7);
-  glow.addColorStop(0, "rgba(255, 236, 190, 0.5)");
-  glow.addColorStop(1, "rgba(255, 236, 190, 0)");
-  ctx.fillStyle = glow;
+  ctx.lineCap = "round";
+  for (let i = 0; i < 34; i += 1) {
+    const seed = hash(i * 619 + 31);
+    const x = seed % CARD_W;
+    const y = hash(seed + 1) % CARD_H;
+    const span = 220 + (hash(seed + 2) % 380);
+    const turn = (hash(seed + 4) % 2 ? 1 : -1) * (80 + (hash(seed + 6) % 160));
+    const light = i % 3 !== 0;
+    ctx.strokeStyle = light ? "rgba(255, 214, 160, 0.17)" : "rgba(130, 28, 60, 0.15)";
+    ctx.lineWidth = 18 + (hash(seed + 12) % 64);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.bezierCurveTo(x + span * 0.3, y - turn, x + span * 0.7, y + turn, x + span, y);
+    ctx.stroke();
+    if (i % 2 === 0) {
+      ctx.strokeStyle = "rgba(255, 236, 200, 0.24)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x, y + 22);
+      ctx.bezierCurveTo(x + span * 0.3, y + 22 - turn, x + span * 0.7, y + 22 + turn, x + span, y + 22);
+      ctx.stroke();
+    }
+  }
+
+  const edge = ctx.createRadialGradient(cx, cy, CARD_W * 0.35, cx, cy, CARD_H * 0.62);
+  edge.addColorStop(0, "rgba(120, 20, 50, 0)");
+  edge.addColorStop(1, "rgba(120, 20, 50, 0.42)");
+  ctx.fillStyle = edge;
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+
+  const halo = ctx.createRadialGradient(cx, cy, 10, cx, cy, 360);
+  halo.addColorStop(0, "rgba(255, 232, 180, 0.55)");
+  halo.addColorStop(1, "rgba(255, 232, 180, 0)");
+  ctx.fillStyle = halo;
   ctx.fillRect(0, 0, CARD_W, CARD_H);
 
   ctx.globalCompositeOperation = "multiply";
-  ctx.globalAlpha = 0.2;
+  ctx.globalAlpha = 0.22;
   ctx.fillStyle = paperFill(ctx);
   ctx.fillRect(0, 0, CARD_W, CARD_H);
   ctx.restore();
 
-  ctx.strokeStyle = "rgba(255, 244, 220, 0.75)";
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(190, 120, 90, 0.5)";
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(border + 22, border + 22, CARD_W - (border + 22) * 2, CARD_H - (border + 22) * 2, inner - 10);
+  ctx.roundRect(border, border, CARD_W - border * 2, CARD_H - border * 2, inner);
   ctx.stroke();
-
-  const cx = CARD_W / 2;
-  const cy = CARD_H / 2;
 
   const moon = document.createElement("canvas");
   moon.width = 160;
@@ -924,31 +977,42 @@ export async function createBackBlob() {
   mctx.arc(104, 66, 52, 0, Math.PI * 2);
   mctx.fill();
   ctx.save();
-  ctx.shadowColor = "rgba(120, 30, 60, 0.45)";
-  ctx.shadowBlur = 18;
-  ctx.translate(cx, cy - 190);
+  ctx.shadowColor = "rgba(110, 24, 50, 0.5)";
+  ctx.shadowBlur = 16;
+  ctx.translate(cx, cy - 215);
   ctx.rotate(-0.35);
-  ctx.drawImage(moon, -80, -80);
+  ctx.drawImage(moon, -64, -64, 128, 128);
   ctx.restore();
+
+  backFlourish(ctx, cx, cy - 120, 250, "rgba(255, 236, 190, 0.9)", 4);
 
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.shadowColor = "rgba(110, 24, 60, 0.55)";
-  ctx.shadowBlur = 22;
-  ctx.shadowOffsetY = 6;
-  ctx.fillStyle = "#fff4dc";
-  ctx.font = '650 190px Fraunces, "Iowan Old Style", Palatino, serif';
-  ctx.fillText("Dixit", cx, cy + 10);
+  ctx.lineJoin = "round";
+  ctx.font = '650 205px Fraunces, "Iowan Old Style", Palatino, serif';
+  ctx.shadowColor = "rgba(90, 14, 40, 0.5)";
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetY = 8;
+  ctx.strokeStyle = "#fff0cf";
+  ctx.lineWidth = 14;
+  ctx.strokeText("Dixit", cx, cy + 15);
+  ctx.shadowColor = "transparent";
+  ctx.fillStyle = "#5a1428";
+  ctx.fillText("Dixit", cx, cy + 15);
 
-  ctx.shadowBlur = 14;
-  ctx.fillStyle = "#ffd98a";
-  ctx.font = '560 78px Fraunces, "Iowan Old Style", Palatino, serif';
+  ctx.font = '560 76px Fraunces, "Iowan Old Style", Palatino, serif';
   try {
-    ctx.letterSpacing = "0.18em";
+    ctx.letterSpacing = "0.2em";
   } catch {
     /* Algunos navegadores no espacian el texto del lienzo. */
   }
-  ctx.fillText("cards", cx, cy + 150);
+  ctx.shadowColor = "rgba(90, 14, 40, 0.5)";
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = "#fff0cf";
+  ctx.fillText("cards", cx, cy + 155);
+  ctx.shadowColor = "transparent";
+
+  backFlourish(ctx, cx, cy + 240, 250, "rgba(255, 236, 190, 0.9)", 4);
 
   return canvasToPngBlob(canvas);
 }
