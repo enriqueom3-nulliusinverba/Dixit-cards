@@ -43,17 +43,14 @@
   --stars: 1;
   --shadow: 0 24px 60px rgba(4, 5, 18, 0.55);
 
-  /* La carta se imprime sobre papel claro en los dos temas. */
-  --card-paper: #f4efe4;
-  --card-ink: #241c16;
   --window-a: #1d2150;
   --window-b: #4a2f66;
 
   --display: Fraunces, "Iowan Old Style", Palatino, "Palatino Linotype", serif;
   --body: Outfit, "Avenir Next", "Segoe UI", sans-serif;
 
-  --frame-x: 6%;
-  --frame-y: 8%;
+  /* Esquinas de una carta de 80 × 120 mm: 3,5 mm de radio. */
+  --card-radius: 4.5% / 3%;
   color-scheme: dark;
 }
 
@@ -309,7 +306,7 @@ h2 {
   position: absolute;
   inset: 0 7%;
   z-index: -1;
-  border-radius: 16px;
+  border-radius: var(--card-radius);
   box-shadow:
     inset 0 0 0 5px rgba(255, 255, 255, 0.16),
     inset 0 0 0 6px rgba(0, 0, 0, 0.18),
@@ -331,9 +328,9 @@ h2 {
 .stage {
   width: 100%;
   aspect-ratio: 2 / 3;
-  padding: var(--frame-y) var(--frame-x);
-  background: var(--card-paper);
-  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(165deg, var(--window-a), var(--window-b));
+  border-radius: var(--card-radius);
   box-shadow: var(--shadow);
 }
 
@@ -341,9 +338,6 @@ h2 {
   position: relative;
   width: 100%;
   height: 100%;
-  overflow: hidden;
-  background: linear-gradient(165deg, var(--window-a), var(--window-b));
-  outline: 1px solid rgba(36, 28, 22, 0.7);
 }
 
 .stage-idle,
@@ -409,8 +403,9 @@ h2 {
 }
 
 .stage.is-preview {
-  padding: 0;
+  overflow: visible;
   background: transparent;
+  box-shadow: none;
 }
 
 .stage.is-preview .stage-window {
@@ -419,7 +414,8 @@ h2 {
 
 .stage.is-preview .stage-preview {
   display: block;
-  border-radius: inherit;
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow);
 }
 
 .stage.is-drag {
@@ -532,8 +528,8 @@ h2 {
   display: block;
   width: 100%;
   height: auto;
-  border-radius: 12px;
-  background: var(--card-paper);
+  aspect-ratio: 2 / 3;
+  border-radius: var(--card-radius);
   box-shadow: var(--shadow);
 }
 

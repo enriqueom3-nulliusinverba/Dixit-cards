@@ -5,13 +5,13 @@
  * No llama a ningún servidor.
  */
 
-export const CARD_W = 900;
-export const CARD_H = 1350;
-export const MARGIN_X = 54;
-export const MARGIN_Y = 72;
+/** Carta de Dixit: 80 × 120 mm (2:3), ilustración a sangre y esquinas redondeadas de unos 3,5 mm. */
+export const CARD_W = 1024;
+export const CARD_H = 1536;
+export const CARD_RADIUS = 46;
 
-const INNER_W = CARD_W - MARGIN_X * 2;
-const INNER_H = CARD_H - MARGIN_Y * 2;
+const INNER_W = CARD_W;
+const INNER_H = CARD_H;
 const WORK_W = 540;
 const WORK_H = Math.round(WORK_W * (INNER_H / INNER_W));
 
@@ -561,63 +561,6 @@ function illustrateWork(source) {
 }
 
 
-async function ensureFonts() {
-  if (!document.fonts?.ready) return;
-  await Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, 1800))]);
-}
-
-function drawPrinterMark(ctx, x, y) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.strokeStyle = "#2a241c";
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.arc(0, 0, 7, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(0, -12);
-  ctx.lineTo(0, 12);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawCorner(ctx, x, y, sx, sy) {
-  ctx.beginPath();
-  ctx.moveTo(x, y + sy * 16);
-  ctx.lineTo(x, y);
-  ctx.lineTo(x + sx * 16, y);
-  ctx.stroke();
-}
-
-function drawFrame(ctx) {
-  ctx.save();
-  ctx.strokeStyle = "#2a241c";
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(16.5, 16.5, CARD_W - 33, CARD_H - 33);
-  ctx.lineWidth = 2.25;
-  ctx.strokeRect(MARGIN_X - 8, MARGIN_Y - 8, INNER_W + 16, INNER_H + 16);
-
-  ctx.lineWidth = 1.5;
-  const inset = 16;
-  drawCorner(ctx, inset, inset, 1, 1);
-  drawCorner(ctx, CARD_W - inset, inset, -1, 1);
-  drawCorner(ctx, inset, CARD_H - inset, 1, -1);
-  drawCorner(ctx, CARD_W - inset, CARD_H - inset, -1, -1);
-  drawPrinterMark(ctx, CARD_W / 2, MARGIN_Y / 2);
-
-  ctx.fillStyle = "#5e5348";
-  ctx.font = '600 18px Fraunces, Palatino, "Palatino Linotype", serif';
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  try {
-    ctx.letterSpacing = "0.28em";
-  } catch {
-    /* Algunos navegadores no espacian el texto del lienzo. */
-  }
-  ctx.fillText("DIXIT CARDS", CARD_W / 2, CARD_H - MARGIN_Y / 2);
-  ctx.restore();
-}
-
 function composeCard(art) {
   const canvas = document.createElement("canvas");
   canvas.width = CARD_W;
@@ -625,10 +568,10 @@ function composeCard(art) {
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
-  ctx.fillStyle = "#f4efe4";
-  ctx.fillRect(0, 0, CARD_W, CARD_H);
-  ctx.drawImage(art, MARGIN_X, MARGIN_Y, INNER_W, INNER_H);
-  drawFrame(ctx);
+  ctx.beginPath();
+  ctx.roundRect(0, 0, CARD_W, CARD_H, CARD_RADIUS);
+  ctx.clip();
+  ctx.drawImage(art, 0, 0, CARD_W, CARD_H);
   return canvas;
 }
 
@@ -642,7 +585,6 @@ export function canvasToPngBlob(canvas) {
 }
 
 export async function illustrateSource(source) {
-  await ensureFonts();
   return composeCard(illustrateWork(source));
 }
 
@@ -890,7 +832,6 @@ function paintSample(ctx, w, h) {
 }
 
 export async function createSampleBlob() {
-  await ensureFonts();
   const art = document.createElement("canvas");
   art.width = INNER_W;
   art.height = INNER_H;
