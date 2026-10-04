@@ -336,7 +336,7 @@ async function illustrate(source) {
     preview.src = previewUrl;
     stopCamera();
     mode = "preview";
-    setStatus("Carta lista. Puedes guardarla en este dispositivo o descargarla.");
+    setStatus("Carta lista. Guárdala en el móvil o en tu mazo.");
   } catch {
     setStatus("No se ha podido ilustrar esa imagen. Prueba con un JPG o un PNG.");
     if (mode !== "live") mode = "idle";
@@ -424,7 +424,7 @@ function clearPreview() {
 async function savePreview() {
   if (!previewBlob || busy) return;
   if (!storageOk) {
-    setStatus("No se puede guardar en este dispositivo. Puedes descargar la carta.");
+    setStatus("No se puede guardar en este dispositivo. Puedes guardarla en el móvil.");
     return;
   }
 
@@ -435,16 +435,14 @@ async function savePreview() {
     sample: false,
   };
 
-  if (canSharePhone) saveToDevice(card.blob, `dixit-cards-${fileStamp(new Date(card.createdAt))}.png`);
-
   try {
     await saveCard(card);
   } catch (error) {
     const quota = error?.name === "QuotaExceededError";
     setStatus(
       quota
-        ? "No queda espacio en este dispositivo para guardar más cartas. Puedes descargar esta."
-        : "No se ha podido guardar la carta. Puedes descargarla.",
+        ? "No queda espacio en este dispositivo para guardar más cartas. Puedes guardar esta en el móvil."
+        : "No se ha podido guardar la carta. Puedes guardarla en el móvil.",
     );
     return;
   }
@@ -453,7 +451,7 @@ async function savePreview() {
   highlightId = card.id;
   clearPreview();
   mode = "idle";
-  setStatus(canSharePhone ? "Carta guardada en el mazo. Elige «Guardar imagen» para dejarla en la galería." : "Carta guardada. Se queda en este dispositivo.");
+  setStatus("Carta guardada en tu mazo.");
   renderActions();
   renderGallery();
   gallery.querySelector(".carta")?.scrollIntoView({
@@ -565,7 +563,7 @@ async function boot() {
     try {
       const blob = await createSampleBlob();
       cards = [{ id: "muestra", createdAt: Date.now(), blob, sample: true }];
-      setStatus("Este navegador no puede guardar la galería. Puedes descargar la carta, pero no se quedará al salir.");
+      setStatus("Este navegador no puede guardar la galería. Puedes guardar la carta en el móvil, pero no se quedará en el mazo al salir.");
     } catch {
       setStatus("No se ha podido preparar la galería en este dispositivo.");
     }
@@ -573,10 +571,7 @@ async function boot() {
   renderGallery();
 }
 
-if (canSharePhone) {
-  buttons.save.textContent = "Guardar en el móvil";
-  buttons.download.textContent = "Compartir";
-}
+buttons.download.textContent = canSharePhone ? "Guardar en el móvil" : "Descargar";
 
 buttons.camera.addEventListener("click", () => {
   openCamera();
