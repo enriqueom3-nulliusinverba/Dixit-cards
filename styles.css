@@ -396,10 +396,11 @@ h2 {
 
 .stage.is-live #video {
   display: block;
+  transform: scale(var(--zoom, 1));
 }
 
 .stage.is-user #video {
-  transform: scaleX(-1);
+  transform: scaleX(-1) scale(var(--zoom, 1));
 }
 
 .stage.is-preview {
@@ -725,7 +726,7 @@ h2 {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: min(92vw, calc((100dvh - 15rem) * 2 / 3));
+  width: min(92vw, calc((100dvh - 18rem) * 2 / 3));
   aspect-ratio: 2 / 3;
   transform: translate(-50%, -50%);
   border: 2px solid rgba(255, 255, 255, 0.9);
@@ -740,6 +741,46 @@ h2 {
 
 html.camera-open {
   overflow: hidden;
+}
+
+.camera-open .stage {
+  touch-action: none;
+}
+
+.zoom {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.zoom:empty {
+  display: none;
+}
+
+.zoom-btn {
+  appearance: none;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 999px;
+  background: rgba(8, 9, 24, 0.6);
+  color: #fff;
+  font: 600 0.88rem/1 var(--body);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.zoom-btn[aria-pressed="true"] {
+  border-color: #f2c46d;
+  background: #f2c46d;
+  color: #2a1c08;
+}
+
+.zoom-btn:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .camera-open .intro,

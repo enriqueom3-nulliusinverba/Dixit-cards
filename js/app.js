@@ -8,6 +8,7 @@ const status = document.querySelector("#status");
 const gallery = document.querySelector("#gallery");
 const deckCount = document.querySelector("#deck-count");
 const guideEl = document.querySelector("#guide");
+const zoomBar = document.querySelector("#zoom");
 const fileInput = document.querySelector("#file");
 const busyLayer = document.querySelector("#stage-busy");
 
@@ -43,6 +44,13 @@ const canSharePhone = (() => {
 let mode = "idle";
 let busy = false;
 let stream = null;
+let track = null;
+let zoom = 1;
+let zoomMin = 1;
+let zoomMax = 4;
+let zoomHardware = false;
+let zoomButtons = [];
+let zoomFrame = 0;
 let facingUser = false;
 let cameraReady = false;
 let storageOk = true;
@@ -82,6 +90,10 @@ function stopCamera() {
     stream = null;
   }
   video.srcObject = null;
+  track = null;
+  zoom = 1;
+  zoomHardware = false;
+  stage.style.removeProperty("--zoom");
   facingUser = false;
   cameraReady = false;
 }
@@ -103,6 +115,7 @@ function renderActions() {
   }
 
   document.documentElement.classList.toggle("camera-open", mode === "live");
+  zoomBar.hidden = mode !== "live";
   stage.classList.toggle("is-live", mode === "live");
   stage.classList.toggle("is-preview", mode === "preview");
   stage.classList.toggle("is-user", mode === "live" && facingUser);
@@ -126,6 +139,62 @@ function cameraMessage(error) {
     default:
       return "No se ha podido abrir la cámara. Puedes elegir una foto de la galería.";
   }
+}
+
+function formatZoom(value) {
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}×`;
+}
+
+function renderZoom() {
+  if (!zoomButtons.length) return;
+  let closest = 0;
+  zoomButtons.forEach((entry, index) => {
+    if (Math.abs(entry.value - zoom) < Math.abs(zoomButtons[closest].value - zoom)) closest = index;
+  });
+  zoomButtons.forEach((entry, index) => {
+    const active = index === closest;
+    entry.button.setAttribute("aria-pressed", String(active));
+    entry.button.textContent = formatZoom(active ? Math.round(zoom * 10) / 10 : entry.value);
+  });
+}
+
+function applyZoom() {
+  zoomFrame = 0;
+  if (zoomHardware && track) {
+    track.applyConstraints({ advanced: [{ zoom }] }).catch(() => {});
+  } else {
+    stage.style.setProperty("--zoom", String(zoom));
+  }
+}
+
+function setZoom(value) {
+  zoom = Math.min(zoomMax, Math.max(zoomMin, value));
+  if (!zoomFrame) zoomFrame = requestAnimationFrame(applyZoom);
+  renderZoom();
+}
+
+/** Zoom de la cámara si el dispositivo lo ofrece; si no, zoom digital sobre el vídeo. */
+function setupZoom() {
+  const capabilities = track?.getCapabilities?.() ?? {};
+  zoomHardware = !!capabilities.zoom;
+  zoomMin = zoomHardware ? capabilities.zoom.min : 1;
+  zoomMax = zoomHardware ? capabilities.zoom.max : 4;
+  zoom = Math.max(zoomMin, Math.min(zoomMax, 1));
+
+  const presets = [0.5, 1, 2, 3, 5].filter((value) => value >= zoomMin - 0.01 && value <= zoomMax + 0.01);
+  zoomBar.replaceChildren();
+  zoomButtons = (presets.length ? presets : [1]).map((value) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "zoom-btn";
+    button.setAttribute("aria-label", `Zoom ${formatZoom(value)}`);
+    button.addEventListener("click", () => setZoom(value));
+    zoomBar.append(button);
+    return { value, button };
+  });
+  if (zoomMax - zoomMin < 0.05) zoomBar.replaceChildren();
+  stage.style.setProperty("--zoom", "1");
+  renderZoom();
 }
 
 async function openCamera() {
@@ -168,7 +237,7 @@ async function openCamera() {
     return;
   }
 
-  const track = stream.getVideoTracks()[0];
+  track = stream.getVideoTracks()[0];
   facingUser = track.getSettings?.().facingMode === "user";
   video.srcObject = stream;
   try {
@@ -186,6 +255,7 @@ async function openCamera() {
   }
 
   cameraReady = video.videoWidth > 0;
+  setupZoom();
   mode = "live";
   setStatus(cameraReady ? "Cámara lista. Cuando encuadres, captura la foto." : "Esperando la imagen de la cámara…");
   renderActions();
@@ -217,10 +287,15 @@ function snapshotVideo() {
   const scale = Math.max(box.width / shot.width, box.height / shot.height);
   const offsetX = (box.width - shot.width * scale) / 2;
   const offsetY = (box.height - shot.height * scale) / 2;
-  const sx = Math.max(0, (guide.left - box.left - offsetX) / scale);
-  const sy = Math.max(0, (guide.top - box.top - offsetY) / scale);
-  const sw = Math.min(shot.width - sx, guide.width / scale);
-  const sh = Math.min(shot.height - sy, guide.height / scale);
+  const digital = zoomHardware ? 1 : zoom;
+  const centerX = box.width / 2;
+  const centerY = box.height / 2;
+  const left = centerX + (guide.left - box.left - centerX) / digital;
+  const top = centerY + (guide.top - box.top - centerY) / digital;
+  const sx = Math.max(0, (left - offsetX) / scale);
+  const sy = Math.max(0, (top - offsetY) / scale);
+  const sw = Math.min(shot.width - sx, guide.width / digital / scale);
+  const sh = Math.min(shot.height - sy, guide.height / digital / scale);
   if (sw < 16 || sh < 16) return shot;
 
   const crop = document.createElement("canvas");
@@ -526,6 +601,43 @@ stage.addEventListener("drop", (event) => {
   const file = event.dataTransfer?.files?.[0];
   if (file) onFile(file);
 });
+
+const pointers = new Map();
+let pinchStart = null;
+
+function pinchDistance() {
+  const [a, b] = [...pointers.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y) || 1;
+}
+
+stage.addEventListener("pointerdown", (event) => {
+  if (mode !== "live") return;
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (pointers.size === 2) pinchStart = { distance: pinchDistance(), zoom };
+});
+
+stage.addEventListener("pointermove", (event) => {
+  if (!pointers.has(event.pointerId)) return;
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (pinchStart && pointers.size === 2) setZoom((pinchStart.zoom * pinchDistance()) / pinchStart.distance);
+});
+
+for (const type of ["pointerup", "pointercancel", "pointerleave"]) {
+  stage.addEventListener(type, (event) => {
+    pointers.delete(event.pointerId);
+    if (pointers.size < 2) pinchStart = null;
+  });
+}
+
+stage.addEventListener(
+  "wheel",
+  (event) => {
+    if (mode !== "live") return;
+    event.preventDefault();
+    setZoom(zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1));
+  },
+  { passive: false },
+);
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && mode === "live") closeCamera();
