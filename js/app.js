@@ -158,13 +158,29 @@ function renderZoom() {
   });
 }
 
+function useDigitalZoom() {
+  zoomHardware = false;
+  zoomMin = 1;
+  zoomMax = 4;
+  zoom = Math.max(1, Math.min(zoom, zoomMax));
+  stage.style.setProperty("--zoom", String(zoom));
+  renderZoom();
+}
+
 function applyZoom() {
   zoomFrame = 0;
-  if (zoomHardware && track) {
-    track.applyConstraints({ advanced: [{ zoom }] }).catch(() => {});
-  } else {
+  if (!zoomHardware || !track) {
     stage.style.setProperty("--zoom", String(zoom));
+    return;
   }
+  const wanted = zoom;
+  track
+    .applyConstraints({ advanced: [{ zoom: wanted }] })
+    .then(() => {
+      const applied = track?.getSettings?.().zoom;
+      if (wanted > 1.05 && (applied === undefined || Math.abs(applied - wanted) > 0.25)) useDigitalZoom();
+    })
+    .catch(useDigitalZoom);
 }
 
 function setZoom(value) {
@@ -176,14 +192,15 @@ function setZoom(value) {
 /** Zoom de la cámara si el dispositivo lo ofrece; si no, zoom digital sobre el vídeo. */
 function setupZoom() {
   const capabilities = track?.getCapabilities?.() ?? {};
-  zoomHardware = !!capabilities.zoom;
+  const range = capabilities.zoom ? capabilities.zoom.max - capabilities.zoom.min : 0;
+  zoomHardware = range > 0.05;
   zoomMin = zoomHardware ? capabilities.zoom.min : 1;
   zoomMax = zoomHardware ? capabilities.zoom.max : 4;
   zoom = Math.max(zoomMin, Math.min(zoomMax, 1));
 
   const presets = [0.5, 1, 2, 3, 5].filter((value) => value >= zoomMin - 0.01 && value <= zoomMax + 0.01);
   zoomBar.replaceChildren();
-  zoomButtons = (presets.length ? presets : [1]).map((value) => {
+  zoomButtons = (presets.length ? presets : [1, 2, 3]).map((value) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "zoom-btn";
@@ -192,7 +209,6 @@ function setupZoom() {
     zoomBar.append(button);
     return { value, button };
   });
-  if (zoomMax - zoomMin < 0.05) zoomBar.replaceChildren();
   stage.style.setProperty("--zoom", "1");
   renderZoom();
 }
