@@ -3,12 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="color-scheme" content="light" />
-    <meta name="theme-color" content="#e7dcc8" />
-    <title>Estampas — cartas ilustradas de lo cotidiano</title>
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#0f1226" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f3effa" media="(prefers-color-scheme: light)" />
+    <title>Dixit cards</title>
     <meta
       name="description"
-      content="Haz una foto o elige una de la galería y conviértela en una carta ilustrada. El filtro se aplica en el navegador y las cartas se quedan en este dispositivo."
+      content="Haz una foto o elige una de la galería y conviértela en una carta ilustrada de cuento. El filtro se aplica en el navegador y las cartas se quedan en este dispositivo."
     />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
@@ -16,44 +17,46 @@
   <body>
     <a class="skip" href="#mirada">Saltar a la foto</a>
     <div class="wrap">
-      <header class="site-header">
-        <p class="kicker">Taller en el navegador</p>
-        <h1>Estampas</h1>
-        <p class="lede">
-          Haz una foto de algo cotidiano que te haya llamado la atención, o elígela de la galería.
-        </p>
-        <p class="persist">Las cartas se quedan en este dispositivo.</p>
-      </header>
-
       <main>
         <noscript>
           <p class="noscript">
-            Estampas necesita JavaScript para ilustrar la foto y guardar las cartas en este dispositivo.
+            Dixit cards necesita JavaScript para ilustrar la foto y guardar las cartas en este dispositivo.
           </p>
         </noscript>
 
-        <section class="capture" id="mirada" aria-labelledby="mirada-titulo">
-          <div class="capture-copy">
-            <h2 id="mirada-titulo">La mirada</h2>
-            <p class="note">
-              El filtro se aplica en este navegador: color, bordes y textura. No hay un modelo en un servidor.
+        <section class="studio" id="mirada" aria-labelledby="titulo">
+          <div class="intro">
+            <p class="kicker">Cartas de cuento hechas con tus fotos</p>
+            <h1 id="titulo"><span>Dixit</span> <span class="h1-cards">cards</span></h1>
+            <p class="lede">
+              Haz una foto de algo cotidiano que te haya llamado la atención, o elige una de la galería. Sale una
+              carta para contar una historia.
             </p>
+            <ol class="steps">
+              <li>Foto</li>
+              <li>Ilustración</li>
+              <li>Tu mazo</li>
+            </ol>
+            <p class="persist">La foto no sale de este navegador.</p>
           </div>
 
-          <div class="stage" id="stage">
-            <img id="preview" class="stage-preview" alt="Vista previa de la carta ilustrada" />
-            <div class="stage-window">
-              <video id="video" playsinline autoplay muted></video>
-              <div class="stage-idle" id="stage-idle">
-                <p>Encuadra algo cercano o suelta una imagen aquí.</p>
-              </div>
-              <div class="stage-busy" id="stage-busy" hidden>
-                <p>Ilustrando la foto…</p>
+          <div class="stage-wrap">
+            <div class="stage" id="stage">
+              <img id="preview" class="stage-preview" alt="Vista previa de la carta ilustrada" />
+              <div class="stage-window">
+                <video id="video" playsinline autoplay muted></video>
+                <div class="stage-idle" id="stage-idle">
+                  <span class="moon" aria-hidden="true"></span>
+                  <p>Encuadra algo cercano o suelta una imagen aquí.</p>
+                </div>
+                <div class="stage-busy" id="stage-busy" hidden>
+                  <p>Ilustrando la foto…</p>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="capture-controls">
+          <div class="controls">
             <p class="status" id="status" role="status"></p>
             <div class="actions">
               <button type="button" class="btn btn-primary" id="btn-camera">Abrir la cámara</button>
@@ -70,8 +73,8 @@
 
         <section class="gallery-section" id="galeria" aria-labelledby="galeria-titulo">
           <div class="gallery-head">
-            <h2 id="galeria-titulo">Galería</h2>
-            <p class="persist">Las cartas se quedan en este dispositivo.</p>
+            <h2 id="galeria-titulo">Tu mazo</h2>
+            <p class="deck-count" id="deck-count"></p>
           </div>
           <div class="gallery" id="gallery" aria-live="polite"></div>
         </section>
@@ -79,8 +82,8 @@
 
       <footer class="site-footer">
         <p>
-          Estampas no envía las fotos a ningún sitio. La galería se guarda solo en este navegador. Si borras
-          los datos del sitio, las cartas desaparecen.
+          Dixit cards no envía las fotos a ningún sitio. El mazo se guarda solo en este navegador. Si borras los
+          datos del sitio, las cartas desaparecen.
         </p>
       </footer>
     </div>

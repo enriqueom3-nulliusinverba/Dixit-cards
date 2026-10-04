@@ -421,7 +421,7 @@ function drawFrame(ctx) {
   } catch {
     /* Algunos navegadores no espacian el texto del lienzo. */
   }
-  ctx.fillText("ESTAMPAS", CARD_W / 2, CARD_H - MARGIN_Y / 2);
+  ctx.fillText("DIXIT CARDS", CARD_W / 2, CARD_H - MARGIN_Y / 2);
   ctx.restore();
 }
 

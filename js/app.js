@@ -6,6 +6,7 @@ const video = document.querySelector("#video");
 const preview = document.querySelector("#preview");
 const status = document.querySelector("#status");
 const gallery = document.querySelector("#gallery");
+const deckCount = document.querySelector("#deck-count");
 const fileInput = document.querySelector("#file");
 const busyLayer = document.querySelector("#stage-busy");
 
@@ -318,6 +319,9 @@ function renderGallery() {
   revokeGalleryUrls();
   gallery.replaceChildren();
 
+  const own = cards.filter((card) => !card.sample).length;
+  deckCount.textContent = own === 1 ? "1 carta tuya" : `${own} cartas tuyas`;
+
   if (!cards.length) {
     const empty = document.createElement("p");
     empty.className = "empty";
@@ -358,7 +362,7 @@ function renderGallery() {
     download.type = "button";
     download.className = "btn btn-ink";
     download.textContent = "Descargar";
-    const filename = card.sample ? "estampa-muestra.png" : `estampa-${fileStamp(new Date(card.createdAt))}.png`;
+    const filename = card.sample ? "dixit-cards-muestra.png" : `dixit-cards-${fileStamp(new Date(card.createdAt))}.png`;
     download.addEventListener("click", () => downloadBlob(card.blob, filename));
 
     const remove = document.createElement("button");
@@ -431,7 +435,7 @@ buttons.save.addEventListener("click", savePreview);
 buttons.discard.addEventListener("click", discardPreview);
 buttons.download.addEventListener("click", () => {
   if (!previewBlob) return;
-  downloadBlob(previewBlob, `estampa-${fileStamp(new Date())}.png`);
+  downloadBlob(previewBlob, `dixit-cards-${fileStamp(new Date())}.png`);
 });
 
 stage.addEventListener("dragover", (event) => {

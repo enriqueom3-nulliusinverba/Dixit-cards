@@ -1,4 +1,4 @@
-# Estampas
+# Dixit cards
 
 Página estática. Con una foto de algo cotidiano —hecha con la cámara o elegida de la galería— compone una carta ilustrada en el propio navegador y la guarda en una galería local.
 
