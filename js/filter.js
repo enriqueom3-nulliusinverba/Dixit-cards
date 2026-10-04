@@ -1,6 +1,7 @@
 /**
- * Tratamiento en el navegador para empujar una foto hacia una ilustración:
- * campos de color, trazos, tinta en los bordes y grano.
+ * Tratamiento en el navegador para empujar una foto hacia una ilustración
+ * de cuento: pintura al gouache (filtro Kuwahara), color de ensueño,
+ * luz que se desborda, enfoque suave hacia los bordes y destellos.
  * No llama a ningún servidor.
  */
 
@@ -85,13 +86,102 @@ function soften(source, smallWidth) {
   return big;
 }
 
+/**
+ * Filtro Kuwahara con imágenes integrales: cada píxel toma el color medio
+ * del cuadrante más uniforme de su entorno. Une las zonas en manchas planas
+ * de pintura y mantiene limpios los bordes.
+ */
+function kuwahara(imageData, w, h, radius) {
+  const stride = w + 1;
+  const size = stride * (h + 1);
+  const sumR = new Float64Array(size);
+  const sumG = new Float64Array(size);
+  const sumB = new Float64Array(size);
+  const sumL = new Float64Array(size);
+  const sumL2 = new Float64Array(size);
+  const src = imageData.data;
+
+  for (let y = 0; y < h; y += 1) {
+    let rowR = 0;
+    let rowG = 0;
+    let rowB = 0;
+    let rowL = 0;
+    let rowL2 = 0;
+    for (let x = 0; x < w; x += 1) {
+      const i = (y * w + x) * 4;
+      const r = src[i];
+      const g = src[i + 1];
+      const b = src[i + 2];
+      const l = 0.299 * r + 0.587 * g + 0.114 * b;
+      rowR += r;
+      rowG += g;
+      rowB += b;
+      rowL += l;
+      rowL2 += l * l;
+      const k = (y + 1) * stride + x + 1;
+      sumR[k] = sumR[k - stride] + rowR;
+      sumG[k] = sumG[k - stride] + rowG;
+      sumB[k] = sumB[k - stride] + rowB;
+      sumL[k] = sumL[k - stride] + rowL;
+      sumL2[k] = sumL2[k - stride] + rowL2;
+    }
+  }
+
+  const box = (table, x0, y0, x1, y1) =>
+    table[(y1 + 1) * stride + x1 + 1] - table[y0 * stride + x1 + 1] - table[(y1 + 1) * stride + x0] + table[y0 * stride + x0];
+
+  const out = new ImageData(w, h);
+  const dst = out.data;
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const xa = Math.max(0, x - radius);
+      const xb = Math.min(w - 1, x + radius);
+      const ya = Math.max(0, y - radius);
+      const yb = Math.min(h - 1, y + radius);
+      const quads = [
+        [xa, ya, x, y],
+        [x, ya, xb, y],
+        [xa, y, x, yb],
+        [x, y, xb, yb],
+      ];
+
+      let best = Infinity;
+      let mr = 0;
+      let mg = 0;
+      let mb = 0;
+      for (const [x0, y0, x1, y1] of quads) {
+        const n = (x1 - x0 + 1) * (y1 - y0 + 1);
+        const meanL = box(sumL, x0, y0, x1, y1) / n;
+        const variance = box(sumL2, x0, y0, x1, y1) / n - meanL * meanL;
+        if (variance < best) {
+          best = variance;
+          mr = box(sumR, x0, y0, x1, y1) / n;
+          mg = box(sumG, x0, y0, x1, y1) / n;
+          mb = box(sumB, x0, y0, x1, y1) / n;
+        }
+      }
+
+      const i = (y * w + x) * 4;
+      dst[i] = mr;
+      dst[i + 1] = mg;
+      dst[i + 2] = mb;
+      dst[i + 3] = 255;
+    }
+  }
+  return out;
+}
+
+/**
+ * Color de ensueño: contraste suave, sombras que viran a violeta en lugar de
+ * negro, luces cálidas de oro y una saturación alta pero sin pasarse.
+ */
 function grade(r, g, b) {
   r /= 255;
   g /= 255;
   b /= 255;
 
   const curve = (channel) => {
-    const next = (channel - 0.5) * 1.18 + 0.5;
+    const next = (channel - 0.5) * 1.12 + 0.5;
     return next < 0 ? 0 : next > 1 ? 1 : next;
   };
 
@@ -100,7 +190,7 @@ function grade(r, g, b) {
   b = curve(b);
 
   const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  const sat = 1.42;
+  const sat = 1.36;
   r = luma + (r - luma) * sat;
   g = luma + (g - luma) * sat;
   b = luma + (b - luma) * sat;
@@ -108,17 +198,17 @@ function grade(r, g, b) {
   g = g < 0 ? 0 : g > 1 ? 1 : g;
   b = b < 0 ? 0 : b > 1 ? 1 : b;
 
-  const shadow = 1 - smoothstep(0.05, 0.58, luma);
-  const highlight = smoothstep(0.42, 0.95, luma);
-  const shadowMix = shadow * 0.32;
-  const highlightMix = highlight * 0.2;
+  const shadow = 1 - smoothstep(0.04, 0.55, luma);
+  const highlight = smoothstep(0.45, 0.95, luma);
+  const shadowMix = shadow * 0.42;
+  const highlightMix = highlight * 0.26;
 
-  r = r * (1 - shadowMix) + 0.17 * shadowMix;
-  g = g * (1 - shadowMix) + 0.07 * shadowMix;
-  b = b * (1 - shadowMix) + 0.2 * shadowMix;
+  r = r * (1 - shadowMix) + 0.2 * shadowMix;
+  g = g * (1 - shadowMix) + 0.1 * shadowMix;
+  b = b * (1 - shadowMix) + 0.32 * shadowMix;
   r = r * (1 - highlightMix) + 1 * highlightMix;
-  g = g * (1 - highlightMix) + 0.86 * highlightMix;
-  b = b * (1 - highlightMix) + 0.64 * highlightMix;
+  g = g * (1 - highlightMix) + 0.88 * highlightMix;
+  b = b * (1 - highlightMix) + 0.62 * highlightMix;
 
   let red = r * 255;
   let green = g * 255;
@@ -141,17 +231,10 @@ function grade(r, g, b) {
     }
   }
 
-  const pull = 0.22;
+  const pull = 0.14;
   red = red * (1 - pull) + nearR * pull;
   green = green * (1 - pull) + nearG * pull;
   blue = blue * (1 - pull) + nearB * pull;
-
-  const step = 255 / 5;
-  const quant = (channel) => Math.round(channel / step) * step;
-  const poster = 0.26;
-  red = red * (1 - poster) + quant(red) * poster;
-  green = green * (1 - poster) + quant(green) * poster;
-  blue = blue * (1 - poster) + quant(blue) * poster;
 
   return [clamp(red), clamp(green), clamp(blue)];
 }
@@ -183,10 +266,11 @@ function percentile(values, ratio) {
   return sample[Math.min(sample.length - 1, Math.floor(ratio * (sample.length - 1)))] || 0;
 }
 
+/** Pinceladas largas que siguen el contorno de las formas: dan la textura de pincel. */
 function paintStrokes(ctx, colors, fieldLum, w, h) {
   const passes = [
-    { radius: 16, step: 15, alphaFlat: 0.48, alphaEdge: 0.2 },
-    { radius: 7, step: 9, alphaFlat: 0.42, alphaEdge: 0.18 },
+    { radius: 15, step: 16, alphaFlat: 0.16, alphaEdge: 0.08 },
+    { radius: 6, step: 10, alphaFlat: 0.14, alphaEdge: 0.07 },
   ];
 
   ctx.save();
@@ -202,7 +286,13 @@ function paintStrokes(ctx, colors, fieldLum, w, h) {
         const pixel = (iy * w + ix) * 4;
         const edge = sobelMag(fieldLum, w, h, ix, iy);
         const flat = edge < 0.42;
-        const angle = flat ? -0.55 : Math.atan2(fieldLum[Math.min(h - 1, iy + 1) * w + ix] - fieldLum[Math.max(0, iy - 1) * w + ix], fieldLum[iy * w + Math.min(w - 1, ix + 1)] - fieldLum[iy * w + Math.max(0, ix - 1)]) + Math.PI / 2;
+        const angle = flat
+          ? -0.55
+          : Math.atan2(
+              fieldLum[Math.min(h - 1, iy + 1) * w + ix] - fieldLum[Math.max(0, iy - 1) * w + ix],
+              fieldLum[iy * w + Math.min(w - 1, ix + 1)] - fieldLum[iy * w + Math.max(0, ix - 1)],
+            ) +
+            Math.PI / 2;
         const len = pass.radius * (flat ? 2.15 : 1.05);
         ctx.globalAlpha = flat ? pass.alphaFlat : pass.alphaEdge;
         ctx.strokeStyle = `rgb(${colors.data[pixel] | 0}, ${colors.data[pixel + 1] | 0}, ${colors.data[pixel + 2] | 0})`;
@@ -216,19 +306,20 @@ function paintStrokes(ctx, colors, fieldLum, w, h) {
   ctx.restore();
 }
 
+/** Lavados de color: violeta frío arriba a la izquierda, ámbar cálido abajo a la derecha. */
 function applyWashes(ctx, w, h) {
   ctx.save();
   ctx.globalCompositeOperation = "soft-light";
-  const teal = ctx.createRadialGradient(w * 0.12, h * 0.08, 8, w * 0.2, h * 0.12, w * 0.75);
-  teal.addColorStop(0, "rgba(32, 118, 128, 0.7)");
-  teal.addColorStop(1, "rgba(32, 118, 128, 0)");
-  ctx.fillStyle = teal;
+  const violet = ctx.createRadialGradient(w * 0.1, h * 0.06, 8, w * 0.2, h * 0.14, w * 0.85);
+  violet.addColorStop(0, "rgba(96, 74, 170, 0.7)");
+  violet.addColorStop(1, "rgba(96, 74, 170, 0)");
+  ctx.fillStyle = violet;
   ctx.fillRect(0, 0, w, h);
 
-  const coral = ctx.createRadialGradient(w * 0.86, h * 0.9, 8, w * 0.72, h * 0.82, w * 0.8);
-  coral.addColorStop(0, "rgba(186, 78, 58, 0.55)");
-  coral.addColorStop(1, "rgba(186, 78, 58, 0)");
-  ctx.fillStyle = coral;
+  const amber = ctx.createRadialGradient(w * 0.88, h * 0.92, 8, w * 0.7, h * 0.8, w * 0.85);
+  amber.addColorStop(0, "rgba(236, 150, 84, 0.6)");
+  amber.addColorStop(1, "rgba(236, 150, 84, 0)");
+  ctx.fillStyle = amber;
   ctx.fillRect(0, 0, w, h);
   ctx.restore();
 }
@@ -257,29 +348,69 @@ function paperFill(ctx) {
 function applyPaper(ctx, w, h) {
   ctx.save();
   ctx.globalCompositeOperation = "multiply";
-  ctx.globalAlpha = 0.28;
+  ctx.globalAlpha = 0.2;
   ctx.fillStyle = paperFill(ctx);
   ctx.fillRect(0, 0, w, h);
   ctx.restore();
 }
 
 function applyVignette(ctx, w, h) {
-  const vignette = ctx.createRadialGradient(w * 0.5, h * 0.46, w * 0.2, w * 0.5, h * 0.48, w * 0.78);
-  vignette.addColorStop(0, "rgba(48, 24, 28, 0)");
-  vignette.addColorStop(1, "rgba(42, 22, 28, 0.28)");
+  const vignette = ctx.createRadialGradient(w * 0.5, h * 0.46, w * 0.25, w * 0.5, h * 0.48, w * 0.82);
+  vignette.addColorStop(0, "rgba(40, 24, 70, 0)");
+  vignette.addColorStop(1, "rgba(34, 20, 64, 0.34)");
   ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, w, h);
 }
 
-function applyBloom(ctx, source) {
-  const glow = soften(source, 32);
+/**
+ * Luz que se desborda: las zonas claras se difuminan mucho y se suman con
+ * "screen", como el halo de una ilustración con luz propia.
+ */
+function applyGlow(ctx, source) {
+  const w = source.width;
+  const h = source.height;
+  const bright = document.createElement("canvas");
+  bright.width = w;
+  bright.height = h;
+  const brightCtx = bright.getContext("2d", { willReadFrequently: true });
+  brightCtx.drawImage(source, 0, 0);
+  const data = brightCtx.getImageData(0, 0, w, h);
+  for (let i = 0; i < data.data.length; i += 4) {
+    const luma = (0.2126 * data.data[i] + 0.7152 * data.data[i + 1] + 0.0722 * data.data[i + 2]) / 255;
+    const keep = smoothstep(0.55, 0.9, luma);
+    data.data[i] *= keep;
+    data.data[i + 1] *= keep;
+    data.data[i + 2] *= keep;
+  }
+  brightCtx.putImageData(data, 0, 0);
+
+  const wide = soften(bright, 22);
+  const tight = soften(bright, 70);
   ctx.save();
   ctx.globalCompositeOperation = "screen";
-  ctx.globalAlpha = 0.1;
-  ctx.drawImage(glow, 0, 0, source.width, source.height);
+  ctx.globalAlpha = 0.4;
+  ctx.drawImage(wide, 0, 0, w, h);
+  ctx.globalAlpha = 0.2;
+  ctx.drawImage(tight, 0, 0, w, h);
   ctx.restore();
 }
 
+/** Enfoque suave hacia los bordes, como un lienzo con el centro más nítido. */
+function applySoftFocus(ctx, source) {
+  const w = source.width;
+  const h = source.height;
+  const blurred = soften(source, 170);
+  const bctx = blurred.getContext("2d");
+  bctx.globalCompositeOperation = "destination-in";
+  const mask = bctx.createRadialGradient(w * 0.5, h * 0.48, w * 0.42, w * 0.5, h * 0.5, w * 1.05);
+  mask.addColorStop(0, "rgba(0, 0, 0, 0)");
+  mask.addColorStop(1, "rgba(0, 0, 0, 0.5)");
+  bctx.fillStyle = mask;
+  bctx.fillRect(0, 0, w, h);
+  ctx.drawImage(blurred, 0, 0);
+}
+
+/** Línea fina en tono ciruela solo en los contornos más marcados. Sin negro duro. */
 function applyInk(ctx, fieldLum, w, h) {
   const magnitude = new Float32Array(w * h);
   for (let y = 1; y < h - 1; y += 1) {
@@ -290,13 +421,13 @@ function applyInk(ctx, fieldLum, w, h) {
     }
   }
 
-  const threshold = percentile(magnitude, 0.9);
+  const threshold = percentile(magnitude, 0.94);
   if (threshold < 0.05) return;
 
   const alpha = new Uint8ClampedArray(w * h);
   for (let i = 0; i < magnitude.length; i += 1) {
-    const strength = smoothstep(threshold, threshold + 0.38, magnitude[i]);
-    alpha[i] = Math.round(strength * 210);
+    const strength = smoothstep(threshold, threshold + 0.45, magnitude[i]);
+    alpha[i] = Math.round(strength * 120);
   }
 
   const thick = new Uint8ClampedArray(alpha);
@@ -304,7 +435,7 @@ function applyInk(ctx, fieldLum, w, h) {
     for (let x = 1; x < w - 1; x += 1) {
       const value = alpha[y * w + x];
       if (!value) continue;
-      const soft = value * 0.55;
+      const soft = value * 0.5;
       const neighbors = [y * w + x + 1, y * w + x - 1, (y + 1) * w + x, (y - 1) * w + x];
       for (const index of neighbors) {
         if (thick[index] < soft) thick[index] = soft;
@@ -315,9 +446,9 @@ function applyInk(ctx, fieldLum, w, h) {
   const ink = ctx.createImageData(w, h);
   for (let i = 0, p = 0; i < ink.data.length; i += 4, p += 1) {
     if (!thick[p]) continue;
-    ink.data[i] = 36;
-    ink.data[i + 1] = 24;
-    ink.data[i + 2] = 22;
+    ink.data[i] = 52;
+    ink.data[i + 1] = 30;
+    ink.data[i + 2] = 72;
     ink.data[i + 3] = thick[p];
   }
 
@@ -326,6 +457,61 @@ function applyInk(ctx, fieldLum, w, h) {
   layer.height = h;
   layer.getContext("2d").putImageData(ink, 0, 0);
   ctx.drawImage(layer, 0, 0);
+}
+
+/** Destellos de luz sobre los puntos más brillantes: motas suaves y unas pocas estrellas. */
+function applySparkles(ctx, fieldLum, w, h) {
+  const cell = 54;
+  const spots = [];
+  for (let cy = 0; cy < h; cy += cell) {
+    for (let cx = 0; cx < w; cx += cell) {
+      let best = 0;
+      let bx = cx;
+      let by = cy;
+      for (let y = cy; y < Math.min(h, cy + cell); y += 3) {
+        for (let x = cx; x < Math.min(w, cx + cell); x += 3) {
+          const value = fieldLum[y * w + x];
+          if (value > best) {
+            best = value;
+            bx = x;
+            by = y;
+          }
+        }
+      }
+      if (best > 0.72) spots.push({ x: bx, y: by, value: best });
+    }
+  }
+
+  spots.sort((a, b) => b.value - a.value);
+  const chosen = spots.slice(0, 22);
+
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  chosen.forEach((spot, index) => {
+    const seed = hash(Math.round(spot.x * 31 + spot.y * 17));
+    const radius = 3 + (seed % 7);
+    const glow = ctx.createRadialGradient(spot.x, spot.y, 0, spot.x, spot.y, radius * 2.6);
+    glow.addColorStop(0, "rgba(255, 238, 190, 0.85)");
+    glow.addColorStop(0.35, "rgba(255, 214, 150, 0.32)");
+    glow.addColorStop(1, "rgba(255, 214, 150, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(spot.x, spot.y, radius * 2.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (index < 5) {
+      const arm = radius * 3.4;
+      ctx.strokeStyle = "rgba(255, 244, 214, 0.75)";
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.moveTo(spot.x - arm, spot.y);
+      ctx.lineTo(spot.x + arm, spot.y);
+      ctx.moveTo(spot.x, spot.y - arm);
+      ctx.lineTo(spot.x, spot.y + arm);
+      ctx.stroke();
+    }
+  });
+  ctx.restore();
 }
 
 function illustrateWork(source) {
@@ -338,35 +524,44 @@ function illustrateWork(source) {
   drawCover(ctx, source, WORK_W, WORK_H);
 
   const fields = soften(work, 68);
-  const medium = soften(work, 180);
+  const medium = soften(work, 200);
   const base = ctx.getImageData(0, 0, WORK_W, WORK_H);
   const fieldData = fields.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, WORK_W, WORK_H);
   const mediumData = medium.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, WORK_W, WORK_H);
-  const output = ctx.createImageData(WORK_W, WORK_H);
-  const fieldLum = new Float32Array(WORK_W * WORK_H);
 
+  const mixed = new ImageData(WORK_W, WORK_H);
+  const fieldLum = new Float32Array(WORK_W * WORK_H);
   for (let i = 0, p = 0; i < base.data.length; i += 4, p += 1) {
-    const red = fieldData.data[i] * 0.52 + mediumData.data[i] * 0.32 + base.data[i] * 0.16;
-    const green = fieldData.data[i + 1] * 0.52 + mediumData.data[i + 1] * 0.32 + base.data[i + 1] * 0.16;
-    const blue = fieldData.data[i + 2] * 0.52 + mediumData.data[i + 2] * 0.32 + base.data[i + 2] * 0.16;
-    const graded = grade(red, green, blue);
-    const grain = (hash(p) % 25) - 12;
+    mixed.data[i] = fieldData.data[i] * 0.12 + mediumData.data[i] * 0.28 + base.data[i] * 0.6;
+    mixed.data[i + 1] = fieldData.data[i + 1] * 0.12 + mediumData.data[i + 1] * 0.28 + base.data[i + 1] * 0.6;
+    mixed.data[i + 2] = fieldData.data[i + 2] * 0.12 + mediumData.data[i + 2] * 0.28 + base.data[i + 2] * 0.6;
+    mixed.data[i + 3] = 255;
+    fieldLum[p] = (0.2126 * fieldData.data[i] + 0.7152 * fieldData.data[i + 1] + 0.0722 * fieldData.data[i + 2]) / 255;
+  }
+
+  const painted = kuwahara(mixed, WORK_W, WORK_H, 3);
+  const output = ctx.createImageData(WORK_W, WORK_H);
+  for (let i = 0, p = 0; i < painted.data.length; i += 4, p += 1) {
+    const graded = grade(painted.data[i], painted.data[i + 1], painted.data[i + 2]);
+    const grain = (hash(p) % 17) - 8;
     output.data[i] = clamp(graded[0] + grain);
     output.data[i + 1] = clamp(graded[1] + grain);
     output.data[i + 2] = clamp(graded[2] + grain);
     output.data[i + 3] = 255;
-    fieldLum[p] = (0.2126 * fieldData.data[i] + 0.7152 * fieldData.data[i + 1] + 0.0722 * fieldData.data[i + 2]) / 255;
   }
 
   ctx.putImageData(output, 0, 0);
   paintStrokes(ctx, output, fieldLum, WORK_W, WORK_H);
   applyWashes(ctx, WORK_W, WORK_H);
+  applyGlow(ctx, work);
+  applySoftFocus(ctx, work);
+  applyInk(ctx, fieldLum, WORK_W, WORK_H);
+  applySparkles(ctx, fieldLum, WORK_W, WORK_H);
   applyPaper(ctx, WORK_W, WORK_H);
   applyVignette(ctx, WORK_W, WORK_H);
-  applyBloom(ctx, work);
-  applyInk(ctx, fieldLum, WORK_W, WORK_H);
   return work;
 }
+
 
 async function ensureFonts() {
   if (!document.fonts?.ready) return;
